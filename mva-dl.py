@@ -2,11 +2,14 @@
 
 import json
 import re
+import os
 from contextlib import closing
 from xml.etree import ElementTree
+from urllib.parse import urlsplit
 
 import requests
 from bs4 import BeautifulSoup
+from clint.textui import progress
 
 VID_QUALITY = '360p'
 URL = 'https://mva.microsoft.com/en-US/training-courses/introduction-to-aspnet-core-10-16841'
@@ -57,8 +60,10 @@ def main():
                 ".//MediaSources[@videoType='progressive']/"
                 "MediaSource[@videoMode='{}']").format(
                     config['video_quality'])
-            download_url = xml_root.find(xquery).text.split('?')[0]
-            extension = re.findall(r'.*\.([^\.]+)$', download_url)[0]
+            download_url = xml_root.find(xquery).text
+            extension = re.findall(
+                r'.*\.([^\.]+)$',
+                urlsplit(download_url).path)[0]
             print(download_url)
             # Allow only alphanumerics, dash and underscore in the name.
             # Outer regex is there to make sure the name doesn't end in "."
@@ -67,9 +72,16 @@ def main():
                 + re.sub(r'[\.]+$', '', re.subn(
                     r'[^\w-]+', '.', resource_title)[0]) \
                 + '.{}'.format(extension)
-            #with open(filename, 'xb') as f, \
-            #        closing(requests.get(download_url, stream=True)) as r:
+            filepath = os.path.join(os.getcwd(), filename)
             print(filename)
+            with open(filepath, 'xb') as dest_file, \
+                    closing(requests.get(download_url, stream=True)) as resp:
+                resource_size = int(resp.headers['content-length'])
+                for chunk in progress.bar(
+                        resp.iter_content(chunk_size=1024),
+                        expected_size=resource_size//1024 + 1):
+                    if chunk:
+                        dest_file.write(chunk)
 
             print('\n')
 
