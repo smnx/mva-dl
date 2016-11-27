@@ -3,7 +3,9 @@
 import json
 import requests
 import re
+
 from bs4 import BeautifulSoup
+from contextlib import closing
 from pprint import pprint
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
@@ -38,14 +40,14 @@ def main():
     r3 = requests.get(resources_url)
     jsres = json.loads(r3.text)
 
-    for lesson in jsres['manifest']['organizations']['organization'][0]['item']:
+    for lix, lesson in enumerate(jsres['manifest']['organizations']['organization'][0]['item'], 1):
         lesson_title = lesson['title']
         lesson_description = lesson['metadata']['description']
         print('LESSON: {}'.format(lesson_title)) 
         print('-' * 72)
         print(lesson_description)
-        for resource in lesson['item']:
-            resource_title = resource['title']
+        for rix, resource in enumerate(lesson['item'], 1):
+            resource_title = re.sub(r'^Video:\s+', '', resource['title'])
             resource_type = \
                     resource['resource']['metadata']['learningresourcetype']
             resource_href = course_res_url +'/' + \
@@ -59,7 +61,21 @@ def main():
                     "MediaSource[@videoMode='{}']").format(
                             config['video_quality'])
             download_url = xml_root.find(xquery).text.split('?')[0]
+            extension = re.findall(r'.*\.([^\.]+)$', download_url)[0]
             print(download_url) 
+            # Allow only alphanumerics, dash and underscore in the name.
+            # Outer regex is there to make sure the name doesn't end in "."
+            # Extension should be clean, right? Right?
+            filename = '{}.{}.'.format(lix, rix) + re.sub(
+                    r'[\.]+$', '', re.subn(
+                        r'[^\w-]+', '.', resource_title)[0]
+                    ) + '.{}'.format(extension)
+            #with open(filename, 'xb') as f, \
+            #        closing(requests.get(download_url, stream=True)) as r:
+            print(filename)
+ 
+            print('\n')
+
 
 
 def get_js_vars(script):
